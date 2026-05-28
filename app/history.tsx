@@ -1,163 +1,240 @@
-import { useState } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, router } from 'expo-router'
+import { router } from "expo-router";
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useSessions } from "../hooks/useSessions";
+import type { Session } from "../lib/sessions";
+
+// Formate une date Firestore en chaîne lisible "27 mai à 14h32"
+function formatDate(date: Date | null): string {
+  if (!date) return "À l'instant";
+  return date.toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function HistoryScreen() {
-  // ── useLocalSearchParams — récupère les données passées en URL
-  const { data } = useLocalSearchParams<{ data: string }>()
+  // ── useQuery TanStack Query : liste des sessions ─────────
+  const { data: sessions, isLoading, isError, error, refetch } = useSessions();
 
-  // On parse le JSON reçu en paramètre
-  const initial: number[] = data ? JSON.parse(data) : []
-
-  // State local pour gérer la suppression
-  const [history, setHistory] = useState(
-    initial.map((value, index) => ({ id: String(index), value }))
-  )
-
-  const handleDelete = (id: string) => {
-    setHistory(prev => prev.filter(item => item.id !== id))
+  // ── Loading ──────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.center} edges={["bottom"]}>
+        <ActivityIndicator size="large" color="#1D3461" />
+        <Text style={styles.helperText}>Chargement des sessions…</Text>
+      </SafeAreaView>
+    );
   }
 
-  const handleDeleteAll = () => {
-    setHistory([])
+  // ── Erreur ───────────────────────────────────────────────
+  if (isError) {
+    return (
+      <SafeAreaView style={styles.center} edges={["bottom"]}>
+        <Text style={styles.errorEmoji}>⚠️</Text>
+        <Text style={styles.errorText}>Impossible de charger les sessions</Text>
+        <Text style={styles.errorDetails}>
+          {error instanceof Error ? error.message : "Erreur inconnue"}
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+          <Text style={styles.retryButtonText}>Réessayer</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <FlatList
-        data={history}
+        data={sessions ?? []}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-
-        // Header — titre + bouton tout supprimer
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.headerTitle}>
-              {history.length} valeur{history.length > 1 ? 's' : ''}
+              {sessions?.length ?? 0} session
+              {(sessions?.length ?? 0) > 1 ? "s" : ""}
             </Text>
-            {history.length > 0 && (
-              <TouchableOpacity onPress={handleDeleteAll}>
-                <Text style={styles.deleteAll}>Tout supprimer</Text>
-              </TouchableOpacity>
-            )}
           </View>
         }
-
-        // Chaque ligne
-        renderItem={({ item, index }) => (
-          <View style={styles.item}>
-            <View style={styles.itemIndex}>
-              <Text style={styles.itemIndexText}>{index + 1}</Text>
-            </View>
-            <Text style={styles.itemValue}>{item.value}</Text>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDelete(item.id)}
-            >
-              <Text style={styles.deleteText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
+        renderItem={({ item }) => <SessionRow session={item} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-
-        // Liste vide
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>📭</Text>
-            <Text style={styles.emptyText}>Historique vide</Text>
+            <Text style={styles.emptyText}>Aucune session sauvegardée</Text>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.replace("/")}
             >
               <Text style={styles.backButtonText}>← Retour au compteur</Text>
             </TouchableOpacity>
           </View>
         }
       />
-
     </SafeAreaView>
-  )
+  );
+}
+
+// ── Ligne d'une session ──────────────────────────────────
+function SessionRow({ session }: { session: Session }) {
+  return (
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => router.push(`/${session.id}`)}
+    >
+      <View style={styles.itemHeader}>
+        <Text style={styles.itemDate}>{formatDate(session.createdAt)}</Text>
+        <View style={styles.itemBadge}>
+          <Text style={styles.itemBadgeText}>{session.values.length} val.</Text>
+        </View>
+      </View>
+
+      <Text style={styles.itemSequence} numberOfLines={1}>
+        {session.values.join(" → ")}
+      </Text>
+
+      <View style={styles.itemStats}>
+        <Text style={styles.itemStat}>min {session.min}</Text>
+        <Text style={styles.itemStatDot}>·</Text>
+        <Text style={styles.itemStat}>moy {session.avg}</Text>
+        <Text style={styles.itemStatDot}>·</Text>
+        <Text style={styles.itemStat}>max {session.max}</Text>
+        <Text style={styles.itemChevron}>›</Text>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F0',
+    backgroundColor: "#FAF7F0",
+  },
+  center: {
+    flex: 1,
+    backgroundColor: "#FAF7F0",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    padding: 24,
+  },
+  helperText: {
+    fontSize: 14,
+    color: "#6B7A99",
+  },
+  errorEmoji: {
+    fontSize: 48,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#1D3461",
+    fontWeight: "600",
+  },
+  errorDetails: {
+    fontSize: 12,
+    color: "#6B7A99",
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: "#1D3461",
+  },
+  retryButtonText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   list: {
     padding: 16,
     paddingBottom: 32,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   headerTitle: {
     fontSize: 13,
-    color: '#6B7A99',
-    textTransform: 'uppercase',
+    color: "#6B7A99",
+    textTransform: "uppercase",
     letterSpacing: 1,
   },
-  deleteAll: {
-    fontSize: 13,
-    color: '#C0392B',
-    fontWeight: '600',
-  },
   item: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
+    gap: 8,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
-  itemIndex: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1D3461',
-    alignItems: 'center',
-    justifyContent: 'center',
+  itemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  itemIndexText: {
+  itemDate: {
+    fontSize: 12,
+    color: "#6B7A99",
+    fontWeight: "600",
+  },
+  itemBadge: {
+    backgroundColor: "#1D3461",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  itemBadgeText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
+  itemSequence: {
+    fontSize: 14,
+    color: "#2C3E6B",
+    fontFamily: "Courier",
+  },
+  itemStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  itemStat: {
     fontSize: 11,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: "#6B7A99",
   },
-  itemValue: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#F5A623',
+  itemStatDot: {
+    fontSize: 11,
+    color: "#C5CCDB",
   },
-  deleteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FDEDEC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteText: {
-    fontSize: 13,
-    color: '#C0392B',
-    fontWeight: 'bold',
+  itemChevron: {
+    marginLeft: "auto",
+    fontSize: 20,
+    color: "#C5CCDB",
+    fontWeight: "bold",
   },
   separator: {
     height: 8,
   },
   empty: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 64,
     gap: 12,
   },
@@ -166,7 +243,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#6B7A99',
+    color: "#6B7A99",
   },
   backButton: {
     marginTop: 8,
@@ -174,11 +251,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#1D3461',
+    borderColor: "#1D3461",
   },
   backButtonText: {
     fontSize: 14,
-    color: '#1D3461',
-    fontWeight: '600',
+    color: "#1D3461",
+    fontWeight: "600",
   },
-})
+});

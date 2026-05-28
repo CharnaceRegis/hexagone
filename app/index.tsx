@@ -1,11 +1,23 @@
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useCreateSession } from "../hooks/useSessions";
 
 export default function CounterScreen() {
   const [count, setCount] = useState(0);
   const [history, setHistory] = useState<number[]>([0]);
+
+  // ── useMutation TanStack Query : création d'une session Firebase ──
+  const createSession = useCreateSession();
 
   // ── useEffect ─────────────────────────────────────────────
   // S'exécute à chaque fois que count change
@@ -29,9 +41,46 @@ export default function CounterScreen() {
   };
 
   const handleHistory = () => {
-    // On passe l'historique en paramètre URL
-    router.push(`/history?data=${JSON.stringify(history)}`);
+    // Plus besoin de passer l'historique en URL : history.tsx lit Firebase
+    router.push("/history");
   };
+
+  // ── Sauvegarde de la session dans Firestore ──────────────
+  const handleSave = () => {
+    console.log("[Save] clic — envoi de la session vers Firestore", {
+      values: history,
+      min: stats.min,
+      avg: stats.avg,
+      max: stats.max,
+    });
+
+    createSession.mutate(
+      {
+        values: history,
+        min: stats.min,
+        avg: stats.avg,
+        max: stats.max,
+      },
+      {
+        onSuccess: (id) => {
+          console.log("[Save] ✅ session créée avec l'ID :", id);
+          // Sémantique "fin de session" : on repart à zéro
+          setCount(0);
+          setHistory([0]);
+        },
+        onError: (error) => {
+          console.error("[Save] ❌ erreur :", error);
+          Alert.alert(
+            "Erreur",
+            "Impossible de sauvegarder la session.\n" +
+              (error instanceof Error ? error.message : "")
+          );
+        },
+      }
+    );
+  };
+
+  const canSave = history.length > 1 && !createSession.isPending;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -86,7 +135,20 @@ export default function CounterScreen() {
           {history.join(" → ")}
         </Text>
 
-        {/* Navigation vers l'historique */}
+        {/* Bouton Sauvegarder dans Firebase */}
+        <TouchableOpacity
+          style={[styles.buttonSave, !canSave && styles.buttonDisabled]}
+          onPress={handleSave}
+          disabled={!canSave}
+        >
+          {createSession.isPending ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveText}>💾 Sauvegarder la session</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Navigation vers l'historique Firebase */}
         <TouchableOpacity style={styles.buttonHistory} onPress={handleHistory}>
           <Text style={styles.historyText}>📋 Voir historique</Text>
         </TouchableOpacity>
@@ -186,6 +248,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#2C3E6B",
     fontFamily: "Courier",
+  },
+  buttonSave: {
+    width: "100%",
+    backgroundColor: "#F5A623",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+  saveText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFFFFF",
   },
   buttonHistory: {
     width: "100%",
