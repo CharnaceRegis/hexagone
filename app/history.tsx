@@ -9,19 +9,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import SessionRow from "../components/SessionRow";
 import { useSessions } from "../hooks/useSessions";
-import type { Session } from "../lib/sessions";
-
-// Formate une date Firestore en chaîne lisible "27 mai à 14h32"
-function formatDate(date: Date | null): string {
-  if (!date) return "À l'instant";
-  return date.toLocaleString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default function HistoryScreen() {
   // ── useQuery TanStack Query : liste des sessions ─────────
@@ -86,36 +75,6 @@ export default function HistoryScreen() {
   );
 }
 
-// ── Ligne d'une session ──────────────────────────────────
-function SessionRow({ session }: { session: Session }) {
-  return (
-    <TouchableOpacity
-      style={styles.item}
-      onPress={() => router.push(`/${session.id}`)}
-    >
-      <View style={styles.itemHeader}>
-        <Text style={styles.itemDate}>{formatDate(session.createdAt)}</Text>
-        <View style={styles.itemBadge}>
-          <Text style={styles.itemBadgeText}>{session.values.length} val.</Text>
-        </View>
-      </View>
-
-      <Text style={styles.itemSequence} numberOfLines={1}>
-        {session.values.join(" → ")}
-      </Text>
-
-      <View style={styles.itemStats}>
-        <Text style={styles.itemStat}>min {session.min}</Text>
-        <Text style={styles.itemStatDot}>·</Text>
-        <Text style={styles.itemStat}>moy {session.avg}</Text>
-        <Text style={styles.itemStatDot}>·</Text>
-        <Text style={styles.itemStat}>max {session.max}</Text>
-        <Text style={styles.itemChevron}>›</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -173,62 +132,6 @@ const styles = StyleSheet.create({
     color: "#6B7A99",
     textTransform: "uppercase",
     letterSpacing: 1,
-  },
-  item: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  itemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  itemDate: {
-    fontSize: 12,
-    color: "#6B7A99",
-    fontWeight: "600",
-  },
-  itemBadge: {
-    backgroundColor: "#1D3461",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  itemBadgeText: {
-    fontSize: 10,
-    color: "#FFFFFF",
-    fontWeight: "bold",
-  },
-  itemSequence: {
-    fontSize: 14,
-    color: "#2C3E6B",
-    fontFamily: "Courier",
-  },
-  itemStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  itemStat: {
-    fontSize: 11,
-    color: "#6B7A99",
-  },
-  itemStatDot: {
-    fontSize: 11,
-    color: "#C5CCDB",
-  },
-  itemChevron: {
-    marginLeft: "auto",
-    fontSize: 20,
-    color: "#C5CCDB",
-    fontWeight: "bold",
   },
   separator: {
     height: 8,
